@@ -9,6 +9,8 @@ import os
 from datetime import datetime
 from PIL import Image
 
+save_root = '/mnt/workdisk/iamroot/work/mandelbrot/'
+
 
 def mandel(
         max_iter: int = 200, 
@@ -19,8 +21,7 @@ def mandel(
         device='cpu', 
         spectrum_compression_factor: int = 1600,
         frame_id: Optional[int] = None,
-        video_name: Optional[str] = None,
-        save_dir: str = '/tmp/'
+        video_name: Optional[str] = None
         ):
     if video_name is None:
         video_name = 'default'
@@ -66,8 +67,8 @@ def mandel(
 
     def save_image(image_numpy):
         # Create the directory if it doesn't exist
-        directory = os.path.join(save_dir, 'stills')
-        video_dir = os.path.join(save_dir, 'videos', video_name)
+        directory = os.path.join(save_root, 'captures')
+        video_dir = os.path.join(save_root, 'videos', video_name)
         os.makedirs(directory, exist_ok=True)
         os.makedirs(video_dir, exist_ok=True)
 
@@ -113,13 +114,16 @@ def mandel(
     return image_numpy
 
 frames_per_second = 60
-seconds = 10
+seconds = 20
 
+outer_spectrum_compression_factor = 1200
+inner_spectrum_compression_factor = 1200 # keep it constant
 zoom_outer_diameter = 1
-zoom_target_diameter = 3.830319256694228e-10
-zoom_target_center = (-0.7421763680483213+zoom_target_diameter/2, -0.14379211179144705)
-outer_spectrum_compression_factor = 800
-inner_spectrum_compression_factor = 1600
+# (-0.28440534236668047, -0.6426373874281622) 1.2463488835009854e-12
+zoom_target_diameter = 1.2463488835009854e-12
+zoom_target_center = (-0.28440534236668047, -0.6426373874281622)
+
+zoom_target_center = (zoom_target_center[0] - zoom_target_diameter / 2, zoom_target_center[1])
 
 def log_interpolate(big_num, small_num, progress):
     log_big_num = np.log(big_num)
@@ -130,17 +134,18 @@ def log_interpolate(big_num, small_num, progress):
 
 total_frames = frames_per_second * seconds
 
-video_name = 'beyer_zoom'
+video_name = 'back_to_black'
 
-save_dir = '/tmp/'
-
-os.makedirs(os.path.join(save_dir, video_name), exist_ok=True)
-existing_frames = os.listdir(os.path.join(save_dir, video_name))
+os.makedirs(os.path.join(save_root, 'videos', video_name), exist_ok=True)
+existing_frames = os.listdir(os.path.join(save_root, 'videos', video_name))
 existing_frame_indices = set([int(frame.split('_')[1].split('.')[0]) for frame in existing_frames if frame.startswith('frame')])
+
+frames_per_device = 1 # trial and error, adjust this when OOM
+num_ranks = torch.cuda.device_count() * frames_per_device
 
 def render_video_frames(rank):
     for frame in tqdm(range(total_frames)):
-        if frame % torch.cuda.device_count() != rank:
+        if frame % num_ranks != rank:
             continue
 
         elif frame in existing_frame_indices:
@@ -151,13 +156,14 @@ def render_video_frames(rank):
         interpolated_diameter = log_interpolate(zoom_outer_diameter, zoom_target_diameter, frame / total_frames)
         mid_left = (zoom_target_center[0] - interpolated_diameter / 2, zoom_target_center[1])
         interpolated_spectrum_compression_factor = outer_spectrum_compression_factor + (inner_spectrum_compression_factor - outer_spectrum_compression_factor) * frame / total_frames
+        device = rank % torch.cuda.device_count()
         args = {
             'max_iter': 12800,
             'scale_up': 2,
             'mid_left': mid_left,
             'x_range': interpolated_diameter,
             'dtype': torch.float64,
-            'device': f'cuda:{rank}',
+            'device': f'cuda:{device}',
             'spectrum_compression_factor': interpolated_spectrum_compression_factor,
             'frame_id': frame,
             'video_name': video_name
@@ -167,5 +173,5 @@ def render_video_frames(rank):
 
         print("Frame rendered")
 
-with torch.multiprocessing.Pool(torch.cuda.device_count()) as pool:
-    pool.map(render_video_frames, range(torch.cuda.device_count()))
+with torch.multiprocessing.Pool(num_ranks) as pool:
+    pool.map(render_video_frames, range(num_ranks))
