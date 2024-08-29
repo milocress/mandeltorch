@@ -38,6 +38,7 @@ I feel like this project is wrapping up so I likely won't implement this but it'
 <img width="762" alt="image" src="https://github.com/milocress/mandeltorch/assets/19612401/078d7377-056c-4e77-bf5d-ec21e98f1cd8">
 <img width="1211" alt="image" src="https://github.com/milocress/mandeltorch/assets/19612401/756da9b3-e176-41f5-9966-bcd30f70491c">
 <img width="1295" alt="image" src="https://github.com/milocress/mandeltorch/assets/19612401/996dbfcf-a5c4-4c48-8704-448225a34fb8">
+<img alt="screensaver" src="https://github.com/user-attachments/assets/99ee57a6-514d-413b-b1cf-3fb99fa8c082">
 
 
 
